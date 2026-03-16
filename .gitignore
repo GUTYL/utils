@@ -1,5 +1,6 @@
 __pycache__/
 .idea/
 .vscode/
-*.py[cod]
+.venv/
 .env
+uv.lock
