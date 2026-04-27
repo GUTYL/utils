@@ -1,4 +1,4 @@
-# utills
+# utils
 
 通用工具仓库，包含备份脚本与示例入口程序。
 
@@ -48,7 +48,7 @@ uv run jsonl_to_excel.py input.jsonl output.xlsx
 依赖:
 
 ```bash
-pip install pandas openpyxl
+uv add pandas openpyxl
 ```
 
 

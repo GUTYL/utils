@@ -8,6 +8,7 @@
 - 每个目录每天只备份一次（当天已有备份则自动跳过）
 - 每个目录最多保留 N 个历史版本（默认 5 个），超出时自动删除最旧的
 - 备份文件以 `tar.gz` 格式压缩后上传到 S3
+- 支持通过 `--exclude` 排除指定文件或目录（glob 模式，可多次使用）
 - 支持试运行模式（`-n`），不实际上传或删除任何文件
 - 支持通过 `.env` 文件统一管理配置
 
@@ -73,6 +74,7 @@ python backup_to_s3.py [选项] <目录1> [目录2 ...]
 | `-k`, `--keep` | 每个目录保留的最大历史版本数 | `5` |
 | `-r`, `--region` | AWS 区域（也可通过 `AWS_DEFAULT_REGION` 环境变量设置） | `us-east-1` |
 | `--storage-class` | S3 存储类型，可选 `STANDARD` / `STANDARD_IA` / `ONEZONE_IA` / `GLACIER` / `DEEP_ARCHIVE` | `STANDARD_IA` |
+| `-x`, `--exclude` | 排除匹配的文件或目录（glob 模式，可多次使用），例如 `-x '*.log' -x 'node_modules'` | — |
 | `-n`, `--dry-run` | 试运行，只打印操作，不实际执行 | — |
 
 ### 示例
@@ -92,6 +94,15 @@ python backup_to_s3.py -e .env -p server-backups --storage-class GLACIER /var/ww
 
 # 试运行，查看将执行哪些操作
 python backup_to_s3.py -e .env -n /etc /var/www
+
+# 排除 .log 和 .tmp 文件
+python backup_to_s3.py -e .env -x '*.log' -x '*.tmp' /data
+
+# 排除 .log 和 .tmp 文件
+python backup_to_s3.py -e .env -x '*.log' -x '*.tmp' /data
+
+# 排除 node_modules 和 __pycache__ 目录（匹配任意层级）
+python backup_to_s3.py -e .env -x 'node_modules' -x '__pycache__' ~/project
 ```
 
 ## S3 存储结构

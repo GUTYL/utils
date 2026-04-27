@@ -11,6 +11,7 @@ backup_to_s3.py — 将指定目录备份到 S3，每个目录每天一个版本
 
 import argparse
 import datetime
+import fnmatch
 import logging
 import os
 import sys
@@ -103,6 +104,14 @@ def parse_args() -> argparse.Namespace:
         help="S3 存储类型（默认: STANDARD_IA）",
     )
     parser.add_argument(
+        "-x",
+        "--exclude",
+        action="append",
+        metavar="PATTERN",
+        default=[],
+        help="排除匹配的文件（glob 模式，可多次使用）",
+    )
+    parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
@@ -116,11 +125,33 @@ def dir_to_key_prefix(src_dir: str) -> str:
     return str(Path(src_dir).resolve()).lstrip("/").replace("/", "_")
 
 
-def compress_directory(src_dir: str, dest_path: str) -> None:
+def compress_directory(
+    src_dir: str,
+    dest_path: str,
+    exclude_patterns: list[str] | None = None,
+) -> None:
     """将 src_dir 压缩为 tar.gz 文件到 dest_path。"""
     src = Path(src_dir).resolve()
+    patterns = exclude_patterns or []
+    arcname = src.name
+
+    def _filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+        name = tarinfo.name.rstrip("/")
+        if name == arcname:
+            return tarinfo
+        suffix = name.removeprefix(arcname + "/")
+        if "/" in suffix:
+            return tarinfo
+
+        for pat in patterns:
+            if fnmatch.fnmatch(Path(name).name, pat):
+                kind = "目录" if tarinfo.isdir() else "文件"
+                log.info("排除%s: %s", kind, tarinfo.name)
+                return None
+        return tarinfo
+
     with tarfile.open(dest_path, "w:gz") as tar:
-        tar.add(src, arcname=src.name)
+        tar.add(src, arcname=arcname, filter=_filter)
     size_mb = os.path.getsize(dest_path) / 1024 / 1024
     log.info("压缩完成: %.2f MB  →  %s", size_mb, dest_path)
 
@@ -172,6 +203,7 @@ def backup_directory(
     max_versions: int,
     storage_class: str,
     dry_run: bool,
+    exclude_patterns: list[str] | None = None,
 ) -> bool:
     """备份单个目录，返回是否成功。"""
     src_path = Path(src_dir)
@@ -201,9 +233,11 @@ def backup_directory(
         try:
             if dry_run:
                 log.info("[试运行] 压缩 %s  →  %s", src_dir, archive_path)
+                if exclude_patterns:
+                    log.info("[试运行] 排除模式: %s", exclude_patterns)
             else:
                 log.info("正在压缩: %s", src_dir)
-                compress_directory(src_dir, archive_path)
+                compress_directory(src_dir, archive_path, exclude_patterns)
         except Exception as e:
             log.error("压缩失败 (%s): %s", src_dir, e)
             return False
@@ -287,6 +321,7 @@ def main() -> None:
             max_versions=args.keep,
             storage_class=args.storage_class,
             dry_run=args.dry_run,
+            exclude_patterns=args.exclude,
         )
         if not ok:
             failed.append(d)
